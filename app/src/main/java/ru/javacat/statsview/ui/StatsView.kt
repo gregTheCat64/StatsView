@@ -101,9 +101,9 @@ class StatsView @JvmOverloads constructor(
         paint.color = 0xFFCCCCCC.toInt()
         canvas.drawCircle(center.x, center.y, radius, paint)
 
-        data.forEach{
-            val angle  = it * 360F
-            paint.color = generateRandomColor()
+        data.forEachIndexed{index, datum ->
+            val angle  = datum * 360F
+            paint.color = colors.getOrElse(index) {generateRandomColor()}
             canvas.drawArc(oval, startAngle,angle,false, paint)
             startAngle += angle
         }
@@ -113,6 +113,11 @@ class StatsView @JvmOverloads constructor(
             center.y+textPaint.textSize/4,
             textPaint
         )
+        if (data.sum()==1F){
+            val angle = 1F
+            paint.color = colors[0]
+            canvas.drawArc(oval, startAngle,angle,false, paint)
+        }
 
     }
 
