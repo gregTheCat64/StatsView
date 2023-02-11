@@ -1,12 +1,15 @@
 package ru.javacat.statsview.ui
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.RectF
 import android.util.AttributeSet
+import android.util.Log
 import android.view.View
+import android.view.animation.LinearInterpolator
 import androidx.core.content.withStyledAttributes
 import ru.javacat.statsview.R
 import ru.javacat.statsview.utils.AndroidUtils
@@ -25,9 +28,17 @@ class StatsView @JvmOverloads constructor(
     defStyleAttr,
     defStyleRes
 ) {
+    private var radius = 0F
+    private var center = PointF()
+    private var oval = RectF()
+
     private var textSize = AndroidUtils.dp(context, 20).toFloat()
     private var lineWidth = AndroidUtils.dp(context, 5)
     private var colors = emptyList<Int>()
+
+    private var progress = 0F
+    private var valueAnimator: ValueAnimator? = null
+
     init {
         context.withStyledAttributes(attributeSet, R.styleable.StatsView){
             textSize = getDimension(R.styleable.StatsView_textSize, textSize)
@@ -45,12 +56,11 @@ class StatsView @JvmOverloads constructor(
     var data: List<Float> = emptyList()
     set(value) {
         field = value
-        invalidate()
+        //invalidate()
+        update()
     }
 
-    private var radius = 0F
-    private var center = PointF()
-    private var oval = RectF()
+
     private val paint = Paint(
         Paint.ANTI_ALIAS_FLAG
     ).apply {
@@ -79,47 +89,104 @@ class StatsView @JvmOverloads constructor(
         )
     }
 
+
+   //                *** ДЗ НОМЕР 1 - ROTATION: ***
+//    override fun onDraw(canvas: Canvas) {
+//        if (data.isEmpty()){
+//            return
+//        }
+//        Log.i("AAA", "onDraw")
+//
+//        canvas.drawText(
+//            "%.2f%%".format(progress*100),
+//            center.x,
+//            center.y+textPaint.textSize/4,
+//            textPaint
+//        )
+//
+//        var startAngle = -90F
+//
+//        data.forEachIndexed{index, datum ->
+//            val angle  = datum * 360F
+//            paint.color = colors.getOrElse(index) {generateRandomColor()}
+//            canvas.drawArc(oval, startAngle+(progress*360F),angle*progress,false, paint)
+//            startAngle += angle
+//        }
+//
+//         //     Фикс бага с 1-й дугой:
+////        if (data.sum()==1F){
+////            val angle = 1F
+////            paint.color = colors[0]
+////            canvas.drawArc(oval, startAngle,angle,false, paint)
+////        }
+//    }
+
+        // *** Доп.задание ***
     override fun onDraw(canvas: Canvas) {
         if (data.isEmpty()){
             return
         }
+        Log.i("AAA", "onDraw")
 
-        var startAngle = -90F
-
-        //вариант с цифрами вместо углов:
-//        var dataSum = 0F
-//        for (i in data){
-//            dataSum += i
-//        }
-//        data.forEachIndexed {index, datum ->
-//            val angle = (1/(dataSum/datum)) * 360F
-//            paint.color = colors.getOrElse(index) {generateRandomColor()}
-//            canvas.drawArc(oval, startAngle, angle, false,paint)
-//            startAngle += angle
-//        }
-
-        paint.color = 0xFFCCCCCC.toInt()
-        canvas.drawCircle(center.x, center.y, radius, paint)
-
-        data.forEachIndexed{index, datum ->
-            val angle  = datum * 360F
-            paint.color = colors.getOrElse(index) {generateRandomColor()}
-            canvas.drawArc(oval, startAngle,angle,false, paint)
-            startAngle += angle
-        }
         canvas.drawText(
-            "%.2f%%".format(data.sum()*100),
+            "%.2f%%".format(progress*100),
             center.x,
             center.y+textPaint.textSize/4,
             textPaint
         )
-        if (data.sum()==1F){
-            val angle = 1F
-            paint.color = colors[0]
-            canvas.drawArc(oval, startAngle,angle,false, paint)
-        }
+
+            var startAngle = -90F
+            // Запоминаем какой сектор уже заполнен для раннего выхода
+            var filled = 0F
+            // Угол, связанный с прогрессом, по сути максимум
+            val progressAngle = 360F * progress
+            for ((index, datum) in data.withIndex()) {
+                Log.i("AAA", "filled: $filled")
+                val angle = 360F * datum
+                // При построении угла учитываем прогресс и уже заполненную дугу
+                val sweepAngle = progressAngle - filled
+
+                Log.i("AAA", "sweep: $sweepAngle")
+                paint.color = colors.getOrNull(index) ?: generateRandomColor()
+                canvas.drawArc(oval, startAngle, sweepAngle, false, paint)
+                startAngle += angle
+                filled += angle
+                // Если продвинулись дальше прогресса, выходим. В следующих кадрах отрисуемся
+                if (filled > progressAngle) return
+            }
+
+
+//        data.forEachIndexed{index, datum ->
+//            val angle  = datum * 360F
+//            paint.color = colors.getOrElse(index) {generateRandomColor()}
+//            canvas.drawArc(oval, startAngle+(progress*360F),angle*progress,false, paint)
+//            startAngle += angle
+//        }
 
     }
+
+
+    private fun update() {
+        Log.i("AAA", "update")
+        valueAnimator?.let {
+            it.removeAllListeners()
+            it.cancel()
+        }
+        progress = 0F
+
+        valueAnimator = ValueAnimator.ofFloat(0F, 1F).apply {
+            addUpdateListener { anim ->
+                progress = anim.animatedValue as Float
+                println("progerss: " +progress)
+                invalidate()
+            }
+            duration = 2000
+            interpolator = LinearInterpolator()
+        }.also {
+            it.start()
+        }
+    }
+
 
     private fun generateRandomColor() = Random.nextInt(0xFF000000.toInt(), 0xFFFFFFFF.toInt())
 }
